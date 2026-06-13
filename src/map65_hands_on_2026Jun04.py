@@ -56,11 +56,11 @@ def _(Path, os, sys):
     # Change this path when needed.
     # The default follows the original script layout:
     #   project_root/output/map65/main3_2026-05-18.xlsx
-    os.chdir('/Users/jack/Desktop/claude') # change path to fit your environment
+    os.chdir('/Users/jack/Library/CloudStorage/OneDrive-医療法人鉄蕉会/亀田総合病院麻酔科 - 麻酔科スタッフ専用チャネル（後期研修医・PAN含む） - チーム抜管/Tutorial') # change path to fit your environment
 
-    PROJECT_ROOT = Path(os.getcwd())  # Adjust if this notebook is not in the "src" directory.')
+    PROJECT_ROOT = Path(os.getcwd()) 
     NOTEBOOK_DIR = PROJECT_ROOT / "src"
-    DATA_PATH = PROJECT_ROOT / "output" / "map65" / "main3_2026-05-18.xlsx"
+    DATA_PATH = PROJECT_ROOT /'data' / "main3_2026-05-18.xlsx"
     OUT_DIR = PROJECT_ROOT / "output" / "map65_hands_on"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -80,21 +80,15 @@ def _(Path, os, sys):
 def _():
     # Standard Table 1 functions remain in my_mod.
     # Propensity-score weighting functions are kept in psweight.py.
-    try:
-        from my_mod import build_table, median_iqr, format_p, format_smd
-        MOD_NAME = "my_mod + psweight"
-    except ImportError:
-        from my_mod_2026May import build_table, median_iqr, format_p, format_smd
-        MOD_NAME = "my_mod_2026May + psweight"
 
-    from psweight_1 import (
+    from my_mod import build_table, median_iqr, format_p, format_smd
+    from psweight import (
         estimate_overlap_weights,
         build_weighted_table,
         combined_outcome_table,
         weighted_mean,
     )
 
-    print(f"Imported helper functions from: {MOD_NAME}")
     return (
         build_table,
         build_weighted_table,
@@ -139,37 +133,21 @@ def _(DATA_PATH, load_data):
 
 
 @app.cell
-def _(GROUPS, estimate_overlap_weights):
-    def compute_overlap_weights(df, groups=GROUPS):
-        """Estimate PS and overlap weights using psweight.py."""
-        return estimate_overlap_weights(
-            df,
-            group_col="Group",
-            groups=groups,
-            continuous_covars=["age", "BMI", "ASAPS_num"],
-            categorical_covars=["診療科"],
-            outcome_col="MAP_AUC_below65",
-            ps_col="PS",
-            weight_col="OW",
-            complete_col="_complete",
-        )
-
-    return (compute_overlap_weights,)
-
-
-@app.cell
-def _(compute_overlap_weights, df_raw):
-    ps_result = compute_overlap_weights(df_raw)
-    df = ps_result.df
-
-    complete = df["_complete"]
-    print(f"Complete cases used for PS: {complete.sum()} / {len(df)}")
-    print(df.loc[complete, ["Group", "PS", "OW"]].groupby("Group").describe())
-    print("\nEffective sample size:")
-    print(ps_result.effective_sample_size())
-
-    df.loc[complete, ["Group", "age", "BMI", "ASAPS_num", "MAP_AUC_below65", "PS", "OW"]].head()
-    return complete, df
+def _():
+    # def compute_overlap_weights(df, groups=GROUPS):
+    #     """Estimate PS and overlap weights using psweight.py."""
+    #     return estimate_overlap_weights(
+    #         df,
+    #         group_col="Group",
+    #         groups=groups,
+    #         continuous_covars=["age", "BMI", "ASAPS_num"],
+    #         categorical_covars=["診療科"],
+    #         outcome_col="MAP_AUC_below65",
+    #         ps_col="PS",
+    #         weight_col="OW",
+    #         complete_col="_complete",
+    #     )
+    return
 
 
 @app.cell
@@ -200,6 +178,31 @@ def _(mo):
     逆に、明らかに一方の群に割り当てられそうな患者は重みを小さくします。
     """)
     return
+
+
+@app.cell
+def _(GROUPS, df_raw, estimate_overlap_weights):
+    ps_result = estimate_overlap_weights(
+            df  = df_raw,
+            group_col="Group",
+            groups=GROUPS,
+            continuous_covars=["age", "BMI", "ASAPS_num"],
+            categorical_covars=["診療科"],
+            outcome_col="MAP_AUC_below65",
+            ps_col="PS",
+            weight_col="OW",
+            complete_col="_complete",
+        )
+    df = ps_result.df
+
+    complete = df["_complete"]
+    print(f"Complete cases used for PS: {complete.sum()} / {len(df)}")
+    print(df.loc[complete, ["Group", "PS", "OW"]].groupby("Group").describe())
+    print("\nEffective sample size:")
+    print(ps_result.effective_sample_size())
+
+    df.loc[complete, ["Group", "age", "BMI", "ASAPS_num", "MAP_AUC_below65", "PS", "OW"]].head()
+    return complete, df
 
 
 @app.cell
@@ -262,6 +265,21 @@ def _(GROUPS, df, plt):
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    ### 図の読み方
+
+    - PSが0に近い症例：PAN/PAMEに割り当てられやすい症例です。
+    - PSが1に近い症例：専攻医に割り当てられやすい症例です。
+    - PSが0.5前後の症例：どちらの群にも入り得るため、比較対象として重要です。
+
+    Overlap Weightでは、専攻医群は `1 - PS`、PAN/PAME群は `PS` を重みにします。
+    そのため、極端な症例の影響を弱め、背景が重なる症例を中心にMAP≤65 AUCを比較します。
+    """)
+    return
+
+
+@app.cell
 def _(GROUPS, df, plt):
     def plot_weighted_overlap_by_group(df, groups=GROUPS):
         """実データでPSごとのOverlap Weightを確認する図。"""
@@ -283,21 +301,6 @@ def _(GROUPS, df, plt):
 
     fig_overlap_by_group = plot_weighted_overlap_by_group(df)
     fig_overlap_by_group
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(r"""
-    ### 図の読み方
-
-    - PSが0に近い症例：PAN/PAMEに割り当てられやすい症例です。
-    - PSが1に近い症例：専攻医に割り当てられやすい症例です。
-    - PSが0.5前後の症例：どちらの群にも入り得るため、比較対象として重要です。
-
-    Overlap Weightでは、専攻医群は `1 - PS`、PAN/PAME群は `PS` を重みにします。
-    そのため、極端な症例の影響を弱め、背景が重なる症例を中心にMAP≤65 AUCを比較します。
-    """)
     return
 
 

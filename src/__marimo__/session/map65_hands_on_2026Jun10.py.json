@@ -1,0 +1,156 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.23.6",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "ce343c7cd06db04eddbb6223a4df5b8a",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"map65-auc-hands-on-seminar\">MAP\u226465 AUC hands-on seminar</h1>\n<span class=\"paragraph\">This notebook reproduces the analysis in <code>map65_2026May18.py</code> step by step.</span>\n<span class=\"paragraph\">Main flow:</span>\n<ol>\n<li>Load and prepare the dataset</li>\n<li>Estimate the propensity score</li>\n<li>Apply overlap weighting</li>\n<li>Check covariate balance with SMD and a love plot</li>\n<li>Compare MAP\u226465 AUC before and after weighting</li>\n<li>Export tables and figures</li>\n</ol>\n<span class=\"paragraph\">The unweighted Table 1 functions are imported from <code>my_mod.py</code> or <code>my_mod_2026May.py</code>.\nPropensity-score weighting functions are imported from <code>psweight.py</code>, so the notebook stays short and reusable.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "a7c2e45e38d5ddfb24cac25b4154ad56",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "ac736803f75d90eca9a21e7dbdad1e82",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "3b76d437a49bdfca11735e13f9b69ff5",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "8c1a6790b74324dc0ef6627dccdcd063",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "f7e427825830f6749f45a707d5e7e65e",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "bd72e861b612e6a33c230bb0205da54e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"propensity-score-overlap-weight\">\u56f3\u3067\u7406\u89e3\u3059\u308b\uff1aPropensity Score \u3068 Overlap Weight</h2>\n<span class=\"paragraph\">\u3053\u306e\u89e3\u6790\u3067\u306f\u3001\u307e\u305a\u60a3\u8005\u80cc\u666f\u304b\u3089 <strong>\u300c\u5c02\u653b\u533b\u62c5\u5f53\u306b\u306a\u308a\u3084\u3059\u3044\u78ba\u7387\u300d</strong> \u3092\u63a8\u5b9a\u3057\u307e\u3059\u3002\n\u3053\u308c\u304c Propensity Score (PS) \u3067\u3059\u3002</span>\n<div class=\"language-text codehilite\"><pre><span></span><code>\u60a3\u8005\u80cc\u666f\nage / BMI / ASAPS / \u8a3a\u7642\u79d1\n         \u2193\n\u30ed\u30b8\u30b9\u30c6\u30a3\u30c3\u30af\u56de\u5e30\n         \u2193\nPropensity Score\n= \u5c02\u653b\u533b\u62c5\u5f53\u306b\u306a\u308b\u63a8\u5b9a\u78ba\u7387\n         \u2193\nOverlap Weight\n= \u6bd4\u8f03\u3057\u3084\u3059\u3044\u75c7\u4f8b\u306b\u5927\u304d\u306a\u91cd\u307f\n         \u2193\n\u91cd\u307f\u4ed8\u304d\u6bd4\u8f03\nMAP\u226465 AUC \u306e\u7fa4\u9593\u5dee\n</code></pre></div>\n<span class=\"paragraph\">\u30dd\u30a4\u30f3\u30c8\u306f\u3001<strong>\u5c02\u653b\u533b\u306b\u3082PAN/PAME\u306b\u3082\u306a\u308a\u5f97\u305f\u60a3\u8005</strong> \u3092\u91cd\u8996\u3059\u308b\u3053\u3068\u3067\u3059\u3002\n\u9006\u306b\u3001\u660e\u3089\u304b\u306b\u4e00\u65b9\u306e\u7fa4\u306b\u5272\u308a\u5f53\u3066\u3089\u308c\u305d\u3046\u306a\u60a3\u8005\u306f\u91cd\u307f\u3092\u5c0f\u3055\u304f\u3057\u307e\u3059\u3002</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "43b96bc36eac83ad7a6f8986a690aa41",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "9caf22d88d7e513a722438ba7aca368c",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "58a770058fc23dbace5621259f63d71a",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "dc07d08b90adb3e9121cd3d6ab58f9e7",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h3 id=\"_1\">\u56f3\u306e\u8aad\u307f\u65b9</h3>\n<ul>\n<li>PS\u304c0\u306b\u8fd1\u3044\u75c7\u4f8b\uff1aPAN/PAME\u306b\u5272\u308a\u5f53\u3066\u3089\u308c\u3084\u3059\u3044\u75c7\u4f8b\u3067\u3059\u3002</li>\n<li>PS\u304c1\u306b\u8fd1\u3044\u75c7\u4f8b\uff1a\u5c02\u653b\u533b\u306b\u5272\u308a\u5f53\u3066\u3089\u308c\u3084\u3059\u3044\u75c7\u4f8b\u3067\u3059\u3002</li>\n<li>PS\u304c0.5\u524d\u5f8c\u306e\u75c7\u4f8b\uff1a\u3069\u3061\u3089\u306e\u7fa4\u306b\u3082\u5165\u308a\u5f97\u308b\u305f\u3081\u3001\u6bd4\u8f03\u5bfe\u8c61\u3068\u3057\u3066\u91cd\u8981\u3067\u3059\u3002</li>\n</ul>\n<span class=\"paragraph\">Overlap Weight\u3067\u306f\u3001\u5c02\u653b\u533b\u7fa4\u306f <code>1 - PS</code>\u3001PAN/PAME\u7fa4\u306f <code>PS</code> \u3092\u91cd\u307f\u306b\u3057\u307e\u3059\u3002\n\u305d\u306e\u305f\u3081\u3001\u6975\u7aef\u306a\u75c7\u4f8b\u306e\u5f71\u97ff\u3092\u5f31\u3081\u3001\u80cc\u666f\u304c\u91cd\u306a\u308b\u75c7\u4f8b\u3092\u4e2d\u5fc3\u306bMAP\u226465 AUC\u3092\u6bd4\u8f03\u3057\u307e\u3059\u3002</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "2e6db49770bbb51ffe11f8dddfda538a",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "502335ed9b66be12b6db3314059fec9b",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "nWHF",
+      "code_hash": "834e80b1459eecddfb5befbf9e770dc2",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "iLit",
+      "code_hash": "921cd20eee8e631b15f8ee898933f67d",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "ZHCJ",
+      "code_hash": "7d7fd0de846a9ac8ea4baed31d2a7f0b",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "ROlb",
+      "code_hash": "b16e58b5a3825bfcad6f589c86bad482",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "qnkX",
+      "code_hash": "13810e141b1a6828118f35d111b94667",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "TqIu",
+      "code_hash": "ecf2845e7b0b298706ff7675ad14e9c5",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Vxnm",
+      "code_hash": "635a3f09677184feea38db8c9e0c1fc3",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "DnEU",
+      "code_hash": "c13d9151fe26bfc461dc06c3afcaf647",
+      "outputs": [],
+      "console": []
+    }
+  ]
+}
