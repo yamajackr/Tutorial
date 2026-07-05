@@ -19,6 +19,9 @@ from typing import Iterable, Literal, Optional, Sequence
 
 import numpy as np
 import pandas as pd
+import re
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = "Hiragino Sans"
 import statsmodels.api as sm
 from scipy.stats import norm, mannwhitneyu
 from sklearn.compose import ColumnTransformer
@@ -759,44 +762,352 @@ def bootstrap_weighted_outcome(
 # Love plot
 # ============================================================
 
-def love_plot(before_table: pd.DataFrame, after_table: pd.DataFrame, *, variable_col="Variable", smd_col="SMD", exclude_variables: Optional[Iterable[str]] = None, threshold=0.1, out_path: Optional[str] = None):
+def love_plot(
+    before_table: pd.DataFrame,
+    after_table: pd.DataFrame,
+    *,
+    variable_col="Variable",
+    smd_col="SMD",
+    exclude_variables: Optional[Iterable[str]] = None,
+    threshold=0.1,
+    out_path: Optional[str] = None,
+    sort_by: str = "table",   # "table" or "smd"
+):
     import matplotlib.pyplot as plt
+
     exclude = set(exclude_variables or [])
+
     def norm_name(v):
         v = str(v).strip()
-        return v.replace(", n (%)", "").replace(", weighted %", "").replace(", n (weighted %)", "").strip()
+        return (
+            v.replace(", n (%)", "")
+             .replace(", weighted %", "")
+             .replace(", n (weighted %)", "")
+             .strip()
+        )
+
     def extract(tbl):
         res = {}
+        order = []
+
         for _, row in tbl.iterrows():
             name = norm_name(row[variable_col])
+
             if name in exclude:
                 continue
+
             try:
-                res[name] = abs(float(str(row[smd_col]).strip()))
+                smd = abs(float(str(row[smd_col]).strip()))
             except Exception:
-                pass
-        return res
-    b, a = extract(before_table), extract(after_table)
-    common = sorted([v for v in b if v in a], key=lambda x: b[x])
-    bv, av = [b[v] for v in common], [a[v] for v in common]
+                continue
+
+            res[name] = smd
+            order.append(name)
+
+        return res, order
+
+    b, before_order = extract(before_table)
+    a, _ = extract(after_table)
+
+    if sort_by == "smd":
+        common = sorted(
+            [v for v in before_order if v in a],
+            key=lambda x: b[x],
+            reverse=True,
+        )
+    elif sort_by == "table":
+        common = [v for v in before_order if v in a]
+    else:
+        raise ValueError("sort_by must be either 'table' or 'smd'")
+
+    bv = [b[v] for v in common]
+    av = [a[v] for v in common]
+
     n = len(common)
     fig_h = max(5, n * 0.30 + 1.5)
+
     fig, ax = plt.subplots(figsize=(7, fig_h))
+
     y = np.arange(n)
+
     for i in range(n):
         ax.plot([bv[i], av[i]], [y[i], y[i]], lw=0.8, zorder=2)
+
     ax.scatter(bv, y, s=45, zorder=4, label="Before weighting")
     ax.scatter(av, y, s=45, zorder=4, label="After weighting")
+
     ax.axvline(0, lw=1.0, zorder=3)
     ax.axvline(threshold, lw=1.0, ls="--", alpha=0.6, zorder=3)
+
     ax.set_yticks(y)
     ax.set_yticklabels(common, fontsize=8)
+
     ax.set_xlabel("|Standardized Mean Difference|")
     ax.set_title("Covariate balance before and after weighting")
     ax.set_xlim(left=-0.01)
+
     ax.grid(axis="x", lw=0.5, zorder=1)
     ax.legend(fontsize=9, frameon=True, loc="lower right")
+
+    # Show first Table 1 variable at the top
+    ax.invert_yaxis()
+
     plt.tight_layout()
+
     if out_path is not None:
         fig.savefig(out_path, dpi=150, bbox_inches="tight")
+
+    return fig
+
+def forest_plot(
+    outcome_table: pd.DataFrame,
+    *,
+    outcome_col="Outcome",
+    rd_col="Weighted RD",
+    ci_col="95% CI",
+    primary_outcome=None,
+    xlim=None,
+    margin=5,
+    symmetric_xlim=False,
+    figsize=None,
+    out_path=None,
+):
+    """
+    Forest plot of weighted risk differences.
+
+    Parameters
+    ----------
+    outcome_table : pd.DataFrame
+        Table containing outcome names, weighted RD, and 95% CI.
+
+    outcome_col : str
+        Column name for outcome labels.
+
+    rd_col : str
+        Column name for weighted risk difference.
+        Values may be numeric or strings such as "-35.1%".
+
+    ci_col : str
+        Column name for confidence intervals.
+        Values should look like "[-58.7, -11.6]".
+
+    primary_outcome : str or None
+        Outcome label to show in bold.
+
+    xlim : tuple or None
+        If None, x-axis limits are determined from the CI range.
+
+    margin : float
+        Extra margin in percentage points added to both sides.
+
+    symmetric_xlim : bool
+        If True, use symmetric x-axis limits around zero.
+
+    figsize : tuple or None
+        If None, figure height is based on number of outcomes.
+
+    out_path : str or Path or None
+        If provided, save the figure.
+    """
+
+    df = outcome_table.copy()
+
+    # ----------------------------
+    # Helper functions
+    # ----------------------------
+    def parse_percent(x):
+        if pd.isna(x):
+            return np.nan
+        if isinstance(x, (int, float, np.number)):
+            return float(x)
+        x = str(x).strip().replace("%", "")
+        return float(x)
+
+    def parse_ci(ci):
+        if pd.isna(ci):
+            return np.nan, np.nan
+
+        nums = re.findall(r"-?\d+\.?\d*", str(ci))
+
+        if len(nums) < 2:
+            return np.nan, np.nan
+
+        return float(nums[0]), float(nums[1])
+
+    # ----------------------------
+    # Parse RD and CI
+    # ----------------------------
+    df["RD_plot"] = df[rd_col].apply(parse_percent)
+
+    cis = df[ci_col].apply(parse_ci)
+    df["CI_low_plot"] = cis.apply(lambda x: x[0])
+    df["CI_high_plot"] = cis.apply(lambda x: x[1])
+
+    df = df.dropna(
+        subset=[outcome_col, "RD_plot", "CI_low_plot", "CI_high_plot"]
+    ).reset_index(drop=True)
+
+    # ----------------------------
+    # Auto x-axis limits
+    # ----------------------------
+    if xlim is None:
+        xmin = np.nanmin(df["CI_low_plot"])
+        xmax = np.nanmax(df["CI_high_plot"])
+
+        if symmetric_xlim:
+            lim = max(abs(xmin), abs(xmax))
+            lim = np.ceil((lim + margin) / 5) * 5
+            xlim = (-lim, lim)
+        else:
+            xmin = np.floor((xmin - margin) / 5) * 5
+            xmax = np.ceil((xmax + margin) / 5) * 5
+
+            # Always include zero
+            xmin = min(xmin, 0)
+            xmax = max(xmax, 0)
+
+            xlim = (xmin, xmax)
+
+    # ----------------------------
+    # Figure size
+    # ----------------------------
+    n = len(df)
+
+    if figsize is None:
+        figsize = (8, max(4, n * 0.55 + 1.6))
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    y = np.arange(n)[::-1]
+
+    # ----------------------------
+    # Plot points and CIs
+    # ----------------------------
+    for yy, (_, row) in zip(y, df.iterrows()):
+
+        rd = row["RD_plot"]
+        lo = row["CI_low_plot"]
+        hi = row["CI_high_plot"]
+
+        significant = (hi < 0) or (lo > 0)
+
+        if rd < 0:
+            color = "#1b9e77"   # favors FADE
+        else:
+            color = "#d95f02"   # favors AE
+
+        alpha = 1.0 if significant else 0.65
+
+        ax.plot(
+            [lo, hi],
+            [yy, yy],
+            lw=2.2,
+            color=color,
+            alpha=alpha,
+            zorder=2,
+        )
+
+        ax.scatter(
+            rd,
+            yy,
+            s=130,
+            color=color,
+            edgecolor="white",
+            linewidth=0.8,
+            alpha=alpha,
+            zorder=3,
+        )
+
+    # ----------------------------
+    # Reference line
+    # ----------------------------
+    ax.axvline(
+        0,
+        color="gray",
+        linestyle="--",
+        linewidth=1.0,
+        zorder=1,
+    )
+
+    # ----------------------------
+    # Labels
+    # ----------------------------
+    ax.set_xlim(*xlim)
+    ax.set_yticks(y)
+
+    labels = []
+    for outcome in df[outcome_col].astype(str):
+        if outcome == primary_outcome:
+            labels.append(r"$\bf{" + outcome.replace(" ", r"\ ") + "}$")
+        else:
+            labels.append(outcome)
+
+    ax.set_yticklabels(labels, fontsize=11)
+
+    ax.set_xlabel("Risk difference (%)")
+    ax.set_title("Weighted risk differences after overlap weighting")
+
+    # ----------------------------
+    # Right-side RD text
+    # ----------------------------
+    text_x = xlim[1] + 0.06 * (xlim[1] - xlim[0])
+
+    for yy, (_, row) in zip(y, df.iterrows()):
+
+        txt = (
+            f"{row['RD_plot']:.1f}% "
+            f"[{row['CI_low_plot']:.1f}, {row['CI_high_plot']:.1f}]"
+        )
+
+        weight = "bold" if row[outcome_col] == primary_outcome else "normal"
+
+        ax.text(
+            text_x,
+            yy,
+            txt,
+            va="center",
+            ha="left",
+            fontsize=10,
+            fontweight=weight,
+        )
+
+    # Extend plotting area to make room for right-side text
+    ax.set_xlim(xlim[0], xlim[1] + 0.45 * (xlim[1] - xlim[0]))
+
+    # ----------------------------
+    # Bottom direction labels
+    # ----------------------------
+    ax.text(
+        xlim[0],
+        -0.9,
+        "← favors FADE",
+        fontsize=11,
+        ha="left",
+        va="center",
+    )
+
+    ax.text(
+        xlim[1],
+        -0.9,
+        "favors AE →",
+        fontsize=11,
+        ha="right",
+        va="center",
+    )
+
+    # ----------------------------
+    # Style
+    # ----------------------------
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+
+    ax.tick_params(axis="y", length=0)
+    ax.grid(axis="x", linewidth=0.5, alpha=0.4)
+
+    plt.tight_layout(rect=[0, 0.04, 1, 1])
+
+    if out_path is not None:
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
+
     return fig
